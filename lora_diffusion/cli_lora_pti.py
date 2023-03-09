@@ -29,6 +29,7 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 from tqdm.auto import tqdm
 from transformers import CLIPTextModel, CLIPTokenizer
+from accelerate import Accelerator
 import wandb
 import fire
 
@@ -582,6 +583,12 @@ def perform_tuning(
 
     loss_sum = 0.0
 
+    accelerator = Accelerator(mixed_precision='fp16')
+
+    unet, text_encoder, optimizer, training_dataloader, scheduler = accelerator.prepare(
+        unet, text_encoder, optimizer, training_dataloader, scheduler
+    )
+
     for epoch in range(math.ceil(num_steps / len(dataloader))):
         for batch in dataloader:
             lr_scheduler_lora.step()
@@ -606,6 +613,7 @@ def perform_tuning(
             torch.nn.utils.clip_grad_norm_(
                 itertools.chain(unet.parameters(), text_encoder.parameters()), 1.0
             )
+            accelerator.backward(loss)
             optimizer.step()
             progress_bar.update(1)
             logs = {
