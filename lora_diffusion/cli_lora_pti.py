@@ -438,7 +438,7 @@ def train_inversion(
                     / accum_iter
                 )
 
-                loss.backward()
+                # loss.backward()
                 accelerator.backward(loss)
                 loss_sum += loss.detach().item()
 
@@ -614,10 +614,10 @@ def perform_tuning(
                 mask_temperature=mask_temperature,
                 cached_latents=cached_latents,
             )
-            accelerator.backward(loss)
             loss_sum += loss.detach().item()
 
-            loss.backward()
+            # loss.backward()
+            accelerator.backward(loss)
             torch.nn.utils.clip_grad_norm_(
                 itertools.chain(unet.parameters(), text_encoder.parameters()), 1.0
             )
