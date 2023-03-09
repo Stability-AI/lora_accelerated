@@ -412,8 +412,8 @@ def train_inversion(
 
     accelerator = Accelerator(mixed_precision='fp16')
 
-    unet, text_encoder, optimizer, dataloader, scheduler = accelerator.prepare(
-        unet, text_encoder, optimizer, dataloader, scheduler
+    unet, vae, text_encoder, optimizer, dataloader, scheduler = accelerator.prepare(
+        unet, vae, text_encoder, optimizer, dataloader, scheduler
     )
 
     for epoch in range(math.ceil(num_steps / len(dataloader))):
@@ -592,8 +592,8 @@ def perform_tuning(
 
     accelerator = Accelerator(mixed_precision='fp16')
 
-    unet, text_encoder, optimizer, dataloader, scheduler = accelerator.prepare(
-        unet, text_encoder, optimizer, dataloader, scheduler
+    unet, vae, text_encoder, optimizer, dataloader, scheduler = accelerator.prepare(
+        unet, vae, text_encoder, optimizer, dataloader, scheduler
     )
 
     for epoch in range(math.ceil(num_steps / len(dataloader))):
