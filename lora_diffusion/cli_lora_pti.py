@@ -439,8 +439,8 @@ def train_inversion(
                 )
 
                 loss.backward()
-                loss_sum += loss.detach().item()
                 accelerator.backward(loss)
+                loss_sum += loss.detach().item()
 
                 if global_step % accum_iter == 0:
                     # print gradient of text encoder embedding
@@ -614,10 +614,10 @@ def perform_tuning(
                 mask_temperature=mask_temperature,
                 cached_latents=cached_latents,
             )
+            accelerator.backward(loss)
             loss_sum += loss.detach().item()
 
             loss.backward()
-            accelerator.backward(loss)
             torch.nn.utils.clip_grad_norm_(
                 itertools.chain(unet.parameters(), text_encoder.parameters()), 1.0
             )
