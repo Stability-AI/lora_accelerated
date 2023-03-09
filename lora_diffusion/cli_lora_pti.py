@@ -410,6 +410,12 @@ def train_inversion(
     index_updates = ~index_no_updates
     loss_sum = 0.0
 
+    accelerator = Accelerator(mixed_precision='fp16')
+
+    unet, text_encoder, optimizer, dataloader, scheduler = accelerator.prepare(
+        unet, text_encoder, optimizer, dataloader, scheduler
+    )
+
     for epoch in range(math.ceil(num_steps / len(dataloader))):
         unet.eval()
         text_encoder.train()
@@ -434,6 +440,7 @@ def train_inversion(
 
                 loss.backward()
                 loss_sum += loss.detach().item()
+                accelerator.backward(loss)
 
                 if global_step % accum_iter == 0:
                     # print gradient of text encoder embedding
@@ -585,8 +592,8 @@ def perform_tuning(
 
     accelerator = Accelerator(mixed_precision='fp16')
 
-    unet, text_encoder, optimizer, training_dataloader, scheduler = accelerator.prepare(
-        unet, text_encoder, optimizer, training_dataloader, scheduler
+    unet, text_encoder, optimizer, dataloader, scheduler = accelerator.prepare(
+        unet, text_encoder, optimizer, dataloader, scheduler
     )
 
     for epoch in range(math.ceil(num_steps / len(dataloader))):
