@@ -269,8 +269,9 @@ def loss_step(
     mixed_precision=False,
     mask_temperature=1.0,
     cached_latents: bool = False,
+    weight_dtype=torch.float32
 ):
-    weight_dtype = torch.float32
+    # weight_dtype = torch.float32
     if not cached_latents:
         latents = vae.encode(
             batch["pixel_values"].to(dtype=weight_dtype).to(unet.device)
@@ -434,6 +435,7 @@ def train_inversion(
                         train_inpainting=train_inpainting,
                         mixed_precision=mixed_precision,
                         cached_latents=cached_latents,
+                        weight_dtype=torch.float16
                     )
                     / accum_iter
                 )
@@ -613,6 +615,7 @@ def perform_tuning(
                 mixed_precision=True,
                 mask_temperature=mask_temperature,
                 cached_latents=cached_latents,
+                weight_dtype=torch.float16
             )
             loss_sum += loss.detach().item()
 
