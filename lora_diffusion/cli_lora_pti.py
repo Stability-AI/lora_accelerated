@@ -29,6 +29,7 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 from tqdm.auto import tqdm
 from transformers import CLIPTextModel, CLIPTokenizer
+from accelerate import Accelerator
 import wandb
 import fire
 
@@ -268,8 +269,9 @@ def loss_step(
     mixed_precision=False,
     mask_temperature=1.0,
     cached_latents: bool = False,
+    weight_dtype=torch.float32
 ):
-    weight_dtype = torch.float32
+    # weight_dtype = torch.float32
     if not cached_latents:
         latents = vae.encode(
             batch["pixel_values"].to(dtype=weight_dtype).to(unet.device)
@@ -409,6 +411,12 @@ def train_inversion(
     index_updates = ~index_no_updates
     loss_sum = 0.0
 
+    accelerator = Accelerator(mixed_precision='fp16')
+
+    unet, vae, text_encoder, optimizer, dataloader, scheduler, lr_scheduler = accelerator.prepare(
+        unet, vae, text_encoder, optimizer, dataloader, scheduler, lr_scheduler
+    )
+
     for epoch in range(math.ceil(num_steps / len(dataloader))):
         unet.eval()
         text_encoder.train()
@@ -427,11 +435,13 @@ def train_inversion(
                         train_inpainting=train_inpainting,
                         mixed_precision=mixed_precision,
                         cached_latents=cached_latents,
+                        weight_dtype=torch.float16
                     )
                     / accum_iter
                 )
 
-                loss.backward()
+                # loss.backward()
+                accelerator.backward(loss)
                 loss_sum += loss.detach().item()
 
                 if global_step % accum_iter == 0:
@@ -582,6 +592,12 @@ def perform_tuning(
 
     loss_sum = 0.0
 
+    accelerator = Accelerator(mixed_precision='fp16')
+
+    unet, vae, text_encoder, optimizer, dataloader, scheduler, lr_scheduler_lora = accelerator.prepare(
+        unet, vae, text_encoder, optimizer, dataloader, scheduler, lr_scheduler_lora
+    )
+
     for epoch in range(math.ceil(num_steps / len(dataloader))):
         for batch in dataloader:
             lr_scheduler_lora.step()
@@ -599,10 +615,12 @@ def perform_tuning(
                 mixed_precision=True,
                 mask_temperature=mask_temperature,
                 cached_latents=cached_latents,
+                weight_dtype=torch.float16
             )
             loss_sum += loss.detach().item()
 
-            loss.backward()
+            # loss.backward()
+            accelerator.backward(loss)
             torch.nn.utils.clip_grad_norm_(
                 itertools.chain(unet.parameters(), text_encoder.parameters()), 1.0
             )
