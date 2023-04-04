@@ -113,11 +113,13 @@ def get_models(
         pretrained_vae_name_or_path or pretrained_model_name_or_path,
         subfolder=None if pretrained_vae_name_or_path else "vae",
         revision=None if pretrained_vae_name_or_path else revision,
+        # torch_dtype=torch.float16
     )
     unet = UNet2DConditionModel.from_pretrained(
         pretrained_model_name_or_path,
         subfolder="unet",
         revision=revision,
+        # torch_dtype=torch.float16
     )
 
     return (
@@ -274,17 +276,20 @@ def loss_step(
     # weight_dtype = torch.float32
     if not cached_latents:
         latents = vae.encode(
-            batch["pixel_values"].to(dtype=weight_dtype).to(unet.device)
+            # batch["pixel_values"].to(dtype=weight_dtype).to(unet.device)
+            batch["pixel_values"]
         ).latent_dist.sample()
         latents = latents * 0.18215
 
         if train_inpainting:
             masked_image_latents = vae.encode(
-                batch["masked_image_values"].to(dtype=weight_dtype).to(unet.device)
+                # batch["masked_image_values"].to(dtype=weight_dtype).to(unet.device)
+                batch["masked_image_values"]
             ).latent_dist.sample()
             masked_image_latents = masked_image_latents * 0.18215
             mask = F.interpolate(
-                batch["mask_values"].to(dtype=weight_dtype).to(unet.device),
+                # batch["mask_values"].to(dtype=weight_dtype).to(unet.device),
+                batch["mask_values"],
                 scale_factor=1 / 8,
             )
     else:
@@ -318,7 +323,8 @@ def loss_step(
         with torch.cuda.amp.autocast():
 
             encoder_hidden_states = text_encoder(
-                batch["input_ids"].to(text_encoder.device)
+                batch["input_ids"]
+                # batch["input_ids"].to(text_encoder.device)
             )[0]
 
             model_pred = unet(
@@ -327,7 +333,8 @@ def loss_step(
     else:
 
         encoder_hidden_states = text_encoder(
-            batch["input_ids"].to(text_encoder.device)
+            batch["input_ids"]
+            # batch["input_ids"].to(text_encoder.device)
         )[0]
 
         model_pred = unet(latent_model_input, timesteps, encoder_hidden_states).sample
@@ -343,7 +350,7 @@ def loss_step(
 
         mask = (
             batch["mask"]
-            .to(model_pred.device)
+            # .to(model_pred.device)
             .reshape(
                 model_pred.shape[0], 1, model_pred.shape[2] * 8, model_pred.shape[3] * 8
             )
@@ -381,6 +388,7 @@ def train_inversion(
     scheduler,
     index_no_updates,
     optimizer,
+    accelerator,
     save_steps: int,
     placeholder_token_ids,
     placeholder_tokens,
@@ -410,8 +418,6 @@ def train_inversion(
 
     index_updates = ~index_no_updates
     loss_sum = 0.0
-
-    accelerator = Accelerator(mixed_precision='fp16')
 
     unet, vae, text_encoder, optimizer, dataloader, scheduler, lr_scheduler = accelerator.prepare(
         unet, vae, text_encoder, optimizer, dataloader, scheduler, lr_scheduler
@@ -560,6 +566,7 @@ def perform_tuning(
     num_steps,
     scheduler,
     optimizer,
+    accelerator,
     save_steps: int,
     placeholder_token_ids,
     placeholder_tokens,
@@ -592,7 +599,7 @@ def perform_tuning(
 
     loss_sum = 0.0
 
-    accelerator = Accelerator(mixed_precision='fp16')
+    # accelerator = Accelerator(mixed_precision='fp16')
 
     unet, vae, text_encoder, optimizer, dataloader, scheduler, lr_scheduler_lora = accelerator.prepare(
         unet, vae, text_encoder, optimizer, dataloader, scheduler, lr_scheduler_lora
@@ -818,6 +825,9 @@ def train(
     print("PTI : Placeholder Tokens", placeholder_tokens)
     print("PTI : Initializer Tokens", initializer_tokens)
 
+    accelerator = Accelerator(mixed_precision='fp16')
+    device=accelerator.device
+
     # get the models
     text_encoder, vae, unet, tokenizer, placeholder_token_ids = get_models(
         pretrained_model_name_or_path,
@@ -904,6 +914,7 @@ def train(
 
     if cached_latents:
         vae = None
+    
     # STEP 1 : Perform Inversion
     if perform_inversion:
         ti_optimizer = optim.AdamW(
@@ -932,6 +943,7 @@ def train(
             scheduler=noise_scheduler,
             index_no_updates=index_no_updates,
             optimizer=ti_optimizer,
+            accelerator=accelerator,
             lr_scheduler=lr_scheduler,
             save_steps=save_steps,
             placeholder_tokens=placeholder_tokens,
@@ -1036,6 +1048,7 @@ def train(
         cached_latents=cached_latents,
         scheduler=noise_scheduler,
         optimizer=lora_optimizers,
+        accelerator=accelerator,
         save_steps=save_steps,
         placeholder_tokens=placeholder_tokens,
         placeholder_token_ids=placeholder_token_ids,
