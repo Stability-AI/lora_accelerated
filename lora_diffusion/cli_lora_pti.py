@@ -113,13 +113,11 @@ def get_models(
         pretrained_vae_name_or_path or pretrained_model_name_or_path,
         subfolder=None if pretrained_vae_name_or_path else "vae",
         revision=None if pretrained_vae_name_or_path else revision,
-        # torch_dtype=torch.float16
     )
     unet = UNet2DConditionModel.from_pretrained(
         pretrained_model_name_or_path,
         subfolder="unet",
         revision=revision,
-        # torch_dtype=torch.float16
     )
 
     return (
@@ -589,8 +587,6 @@ def perform_tuning(
     progress_bar.set_description("Steps")
     global_step = 0
 
-    weight_dtype = torch.float16
-
     unet.train()
     text_encoder.train()
 
@@ -825,7 +821,7 @@ def train(
     print("PTI : Placeholder Tokens", placeholder_tokens)
     print("PTI : Initializer Tokens", initializer_tokens)
 
-    accelerator = Accelerator(mixed_precision='fp16')
+    accelerator = Accelerator(mixed_precision='fp8')
     device=accelerator.device
 
     # get the models
